@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/KazKozDev/abscissa/main/docs/assets/banner.png" alt="Abscissa" width="350">
+</p>
+
 # Abscissa
 
 Abscissa is a Python stdio MCP server for Linear. It turns Linear's GraphQL
@@ -27,7 +31,7 @@ export LINEAR_API_KEY='lin_api_…'
 .venv/bin/abscissa
 ```
 
-After the first release, installation will also be available directly from PyPI:
+You can also install Abscissa directly from PyPI:
 
 ```sh
 pip install abscissa

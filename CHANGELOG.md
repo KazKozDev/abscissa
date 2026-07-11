@@ -2,6 +2,13 @@
 
 All notable changes to Abscissa are documented in this file.
 
+## [0.1.1] - 2026-07-11
+
+### Changed
+
+- Add the README banner image and use an absolute raw GitHub URL so it renders
+  on PyPI as well as GitHub.
+
 ## [0.1.0] - 2026-07-11
 
 ### Added
