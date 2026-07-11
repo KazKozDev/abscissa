@@ -54,7 +54,7 @@ Create an issue in ENG for fixing onboarding copy.
 List issues blocked by GEN-32.
 ```
 
-## What the client can call
+## Tools
 
 | Area | Tools |
 | --- | --- |
