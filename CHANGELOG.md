@@ -2,6 +2,14 @@
 
 All notable changes to Abscissa are documented in this file.
 
+## [0.1.2] - 2026-07-11
+
+### Changed
+
+- Add MCP Registry metadata and README ownership verification for the PyPI
+  package.
+- Add example prompts to make first-use workflows clearer.
+
 ## [0.1.1] - 2026-07-11
 
 ### Changed

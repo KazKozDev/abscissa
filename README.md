@@ -2,9 +2,9 @@
   <img src="https://raw.githubusercontent.com/KazKozDev/abscissa/main/docs/assets/banner.png" alt="Abscissa" width="350">
 </p>
 
-# Abscissa
+<!-- mcp-name: io.github.KazKozDev/abscissa -->
 
-Abscissa is a Python stdio MCP server for Linear. It turns Linear's GraphQL
+Abscissa is a Python stdio MCP server for [Linear](https://linear.app/). It turns Linear's GraphQL
 API into 35 tools for an MCP client: issues, projects, cycles, dependencies,
 comments, labels, workflow states, teams, and users.
 
@@ -43,6 +43,16 @@ The final command starts the MCP server on standard input and output. Register
 
 The key remains outside the repository. The `.gitignore` excludes common local
 environment files, including `.env` and `.venv`.
+
+## Example prompts
+
+Once Abscissa is registered in your MCP client, try prompts like:
+
+```text
+Show my open Linear issues grouped by project.
+Create an issue in ENG for fixing onboarding copy.
+List issues blocked by GEN-32.
+```
 
 ## What the client can call
 

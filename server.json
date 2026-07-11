@@ -1,0 +1,32 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.KazKozDev/abscissa",
+  "title": "Abscissa",
+  "description": "Safety-aware MCP server for Linear issues, projects, cycles, and dependencies.",
+  "version": "0.1.2",
+  "websiteUrl": "https://github.com/KazKozDev/abscissa",
+  "repository": {
+    "url": "https://github.com/KazKozDev/abscissa",
+    "source": "github",
+    "id": "1297061586"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "abscissa",
+      "version": "0.1.2",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "LINEAR_API_KEY",
+          "description": "Linear personal API key used to authenticate API requests.",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}
