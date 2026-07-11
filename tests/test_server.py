@@ -206,10 +206,138 @@ def test_destructive_operations_require_confirmation(monkeypatch) -> None:
     assert "requires explicit confirmation" in server.archive_cycle("cycle-1")
 
 
+def test_project_detail_tools_use_current_linear_project_fields(monkeypatch) -> None:
+    calls = []
+
+    def fake_gql(query, variables=None):
+        calls.append((query, variables))
+        if "teams(filter" in query:
+            return {"teams": {"nodes": [{"id": "team-1"}]}}
+        return {
+            "projectUpdate": {
+                "project": {
+                    "id": "project-1",
+                    "priority": 2,
+                    "startDate": "2026-07-11",
+                }
+            }
+        }
+
+    monkeypatch.setattr(server, "_gql", fake_gql)
+
+    result = json.loads(
+        server.update_project_details(
+            "project-1",
+            content="## Launch",
+            lead_id="user-1",
+            member_ids="user-1,user-2",
+            priority=2,
+            start_date="2026-07-11",
+            target_date="2026-07-18",
+            team_ids="ABS",
+            clear_lead=True,
+        )
+    )
+
+    assert result["id"] == "project-1"
+    assert calls[1][1]["input"] == {
+        "content": "## Launch",
+        "leadId": None,
+        "memberIds": ["user-1", "user-2"],
+        "priority": 2,
+        "startDate": "2026-07-11",
+        "targetDate": "2026-07-18",
+        "teamIds": ["team-1"],
+    }
+
+
+def test_project_label_tools_and_updates_use_expected_linear_operations(monkeypatch) -> None:
+    calls = []
+
+    def fake_gql(query, variables=None):
+        calls.append((query, variables))
+        if "projectLabels" in query:
+            return {
+                "projectLabels": {
+                    "nodes": [{"id": "label-1", "name": "growth"}],
+                    "pageInfo": {"hasNextPage": True, "endCursor": "labels-cursor"},
+                }
+            }
+        if "projectLabelCreate" in query:
+            return {"projectLabelCreate": {"projectLabel": {"id": "label-2", "name": "launch"}}}
+        if "projectAddLabel" in query:
+            return {"projectAddLabel": {"project": {"id": "project-1", "name": "Abscissa"}}}
+        if "projectRemoveLabel" in query:
+            return {"projectRemoveLabel": {"project": {"id": "project-1", "name": "Abscissa"}}}
+        if "projectUpdateCreate" in query:
+            return {"projectUpdateCreate": {"projectUpdate": {"id": "update-1", "body": "Shipped"}}}
+        return {
+            "projectUpdates": {
+                "nodes": [{"id": "update-1", "body": "Shipped"}],
+                "pageInfo": {"hasNextPage": False, "endCursor": None},
+            }
+        }
+
+    monkeypatch.setattr(server, "_gql", fake_gql)
+
+    labels = json.loads(server.list_project_labels(limit=100, cursor="old-cursor"))
+    created_label = json.loads(server.create_project_label("launch", "#F59E0B", "Launch work"))
+    attached = json.loads(server.add_project_label("project-1", "label-2"))
+    removed = json.loads(server.remove_project_label("project-1", "label-2"))
+    update = json.loads(server.create_project_update("project-1", "Shipped", "onTrack"))
+    updates = json.loads(server.list_project_updates("project-1"))
+
+    assert labels == {"items": [{"id": "label-1", "name": "growth"}], "next_cursor": "labels-cursor"}
+    assert created_label == {"id": "label-2", "name": "launch"}
+    assert attached["id"] == removed["id"] == "project-1"
+    assert update == {"id": "update-1", "body": "Shipped"}
+    assert updates == {"items": [{"id": "update-1", "body": "Shipped"}], "next_cursor": None}
+    assert calls[0][1] == {"first": 50, "after": "old-cursor"}
+    assert calls[1][1]["input"] == {
+        "name": "launch",
+        "color": "#F59E0B",
+        "description": "Launch work",
+    }
+    assert calls[2][1] == {"id": "project-1", "labelId": "label-2"}
+    assert calls[3][1] == {"id": "project-1", "labelId": "label-2"}
+    assert calls[4][1]["input"] == {
+        "projectId": "project-1",
+        "body": "Shipped",
+        "health": "onTrack",
+    }
+    assert calls[5][1] == {"projectId": "project-1", "first": 50, "after": None}
+
+
+def test_project_status_updates_resolve_current_status_ids(monkeypatch) -> None:
+    calls = []
+
+    def fake_gql(query, variables=None):
+        calls.append((query, variables))
+        if "projectStatuses" in query:
+            return {
+                "projectStatuses": {
+                    "nodes": [
+                        {"id": "status-1", "name": "In Progress", "type": "started"},
+                        {"id": "status-2", "name": "Canceled", "type": "canceled"},
+                    ]
+                }
+            }
+        return {"projectUpdate": {"project": {"id": "project-1", "name": "Abscissa"}}}
+
+    monkeypatch.setattr(server, "_gql", fake_gql)
+
+    updated = json.loads(server.update_project("project-1", state="started"))
+    archived = json.loads(server.archive_project("project-1", confirm=True))
+
+    assert updated["id"] == archived["id"] == "project-1"
+    assert calls[1][1]["input"] == {"statusId": "status-1"}
+    assert calls[3][1]["input"] == {"statusId": "status-2"}
+
+
 def test_mcp_lists_all_tools_and_marks_destructive_ones() -> None:
     tools = {tool.name: tool for tool in asyncio.run(server.mcp.list_tools())}
 
-    assert len(tools) == 35
+    assert len(tools) == 42
     assert tools["delete_issue"].annotations.destructiveHint is True
     assert tools["archive_issue"].annotations.destructiveHint is True
     assert tools["archive_project"].annotations.destructiveHint is True
@@ -217,3 +345,6 @@ def test_mcp_lists_all_tools_and_marks_destructive_ones() -> None:
     assert tools["set_issue_project"].annotations.openWorldHint is True
     assert tools["add_issue_dependency"].annotations.openWorldHint is True
     assert tools["create_cycle"].annotations.openWorldHint is True
+    assert tools["update_project_details"].annotations.openWorldHint is True
+    assert tools["create_project_label"].annotations.openWorldHint is True
+    assert tools["create_project_update"].annotations.openWorldHint is True

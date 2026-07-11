@@ -5,7 +5,7 @@
 <!-- mcp-name: io.github.KazKozDev/abscissa -->
 
 Abscissa is a Python stdio MCP server for [Linear](https://linear.app/). It turns Linear's GraphQL
-API into 35 tools for an MCP client: issues, projects, cycles, dependencies,
+API into 42 tools for an MCP client: issues, projects, cycles, dependencies,
 comments, labels, workflow states, teams, and users.
 
 The design priority is deliberate control over project data. Read operations
@@ -64,7 +64,9 @@ List issues blocked by GEN-32.
 | Dependencies | `list_issue_dependencies`, `add_issue_dependency`, `remove_issue_dependency` |
 | Labels and workflow | `list_workflow_states`, `list_issue_labels`, `create_label`, `add_issue_label`, `remove_issue_label` |
 | Teams and people | `list_teams`, `get_team`, `list_users` |
-| Projects | `create_project`, `get_project`, `list_projects`, `list_project_issues`, `set_issue_project`, `remove_issue_from_project`, `update_project`, `archive_project` |
+| Projects | `create_project`, `get_project`, `list_projects`, `list_project_issues`, `set_issue_project`, `remove_issue_from_project`, `update_project`, `update_project_details`, `archive_project` |
+| Project labels | `list_project_labels`, `create_project_label`, `add_project_label`, `remove_project_label` |
+| Project updates | `create_project_update`, `list_project_updates` |
 | Cycles | `create_cycle`, `update_cycle`, `archive_cycle`, `list_cycles`, `list_cycle_issues` |
 
 Search and list tools accept `limit` and `cursor`. Their responses keep the same

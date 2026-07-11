@@ -2,6 +2,20 @@
 
 All notable changes to Abscissa are documented in this file.
 
+## [0.1.3] - 2026-07-11
+
+### Added
+
+- Project-detail updates for content, lead, members, priority, dates, teams,
+  icon, and color.
+- Project-label listing, creation, assignment, and removal tools.
+- Project-update creation and cursor-paginated listing tools.
+
+### Fixed
+
+- Project status updates and project archiving now use Linear's current
+  `statusId` API field.
+
 ## [0.1.2] - 2026-07-11
 
 ### Changed

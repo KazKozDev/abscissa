@@ -97,6 +97,20 @@ def _resolve_state_id(team_id: str, state_name: str) -> str | None:
     return None
 
 
+def _resolve_project_status_id(status_name: str) -> str | None:
+    """Resolve a Linear project status by its type or display name."""
+    data = _gql(
+        "query { projectStatuses(first: 50) { nodes { id name type } } }",
+    )
+    statuses = (data.get("projectStatuses") or {}).get("nodes") or []
+    for status in statuses:
+        if status.get("name", "").lower() == status_name.lower():
+            return status["id"]
+        if status.get("type", "").lower() == status_name.lower():
+            return status["id"]
+    return None
+
+
 # ── Issue tools ────────────────────────────────────────────────────────────
 
 
@@ -608,7 +622,7 @@ def list_teams(limit: int = 50, cursor: str = "") -> str:
 def list_projects(limit: int = 50, cursor: str = "") -> str:
     """List projects. Pass next_cursor as cursor for the next page."""
     data = _gql(
-        "query($first: Int!, $after: String) { projects(first: $first, after: $after) { nodes { id name teams { nodes { id key } } state } pageInfo { hasNextPage endCursor } } }",
+        "query($first: Int!, $after: String) { projects(first: $first, after: $after) { nodes { id name teams { nodes { id key } } status { name type } } pageInfo { hasNextPage endCursor } } }",
         {"first": _page_size(limit), "after": cursor or None},
     )
     connection = data.get("projects") or {}
@@ -616,7 +630,16 @@ def list_projects(limit: int = 50, cursor: str = "") -> str:
     out = []
     for project in nodes:
         teams = [team.get("key") for team in (project.get("teams") or {}).get("nodes") or []]
-        out.append({"id": project["id"], "name": project["name"], "teams": teams, "state": project.get("state")})
+        status = project.get("status") or {}
+        out.append(
+            {
+                "id": project["id"],
+                "name": project["name"],
+                "teams": teams,
+                "status": status.get("name"),
+                "state": status.get("type"),
+            }
+        )
     return _j({**_page(connection), "items": out})
 
 
@@ -662,7 +685,11 @@ def create_project(name: str, team_ids: str = "", description: str = "") -> str:
 def get_project(project_id: str) -> str:
     """Get a project by UUID."""
     data = _gql(
-        "query($id: String!) { project(id: $id) { id name description state teams { nodes { id key name } } } }",
+        """query($id: String!) { project(id: $id) {
+            id name description content priority startDate targetDate
+            status { id name type } lead { id name } members { nodes { id name } }
+            labels { nodes { id name color } } teams { nodes { id key name } }
+        } }""",
         {"id": project_id},
     )
     return _j(data.get("project"))
@@ -692,22 +719,207 @@ def list_users(limit: int = 50, cursor: str = "") -> str:
 
 @mcp.tool(annotations=ToolAnnotations(openWorldHint=True))
 def update_project(project_id: str, name: str = "", description: str = "", state: str = "") -> str:
-    """Update a project. State may be planned, started, paused, completed, or canceled."""
+    """Update a project's name, summary, or status.
+
+    State accepts a Linear status type such as planned, started, paused,
+    completed, or canceled, or the status's display name.
+    """
     inp: dict[str, Any] = {}
     if name:
         inp["name"] = name
     if description:
         inp["description"] = description
     if state:
-        inp["state"] = state
+        status_id = _resolve_project_status_id(state)
+        if not status_id:
+            return _j({"error": f"Project status '{state}' not found"})
+        inp["statusId"] = status_id
     if not inp:
         return _j({"error": "No fields to update"})
     data = _gql(
-        "mutation($id: String!, $input: ProjectUpdateInput!) { projectUpdate(id: $id, input: $input) { success project { id name description state } } }",
+        """mutation($id: String!, $input: ProjectUpdateInput!) {
+            projectUpdate(id: $id, input: $input) {
+                success project { id name description status { id name type } }
+            }
+        }""",
         {"id": project_id, "input": inp},
     )
     project = (data.get("projectUpdate") or {}).get("project")
     return _j(project or {"error": "Failed to update project"})
+
+
+@mcp.tool(annotations=ToolAnnotations(openWorldHint=True))
+def update_project_details(
+    project_id: str,
+    content: str = "",
+    lead_id: str = "",
+    member_ids: str = "",
+    priority: int = -1,
+    start_date: str = "",
+    target_date: str = "",
+    team_ids: str = "",
+    icon: str = "",
+    color: str = "",
+    clear_lead: bool = False,
+    clear_members: bool = False,
+    clear_start_date: bool = False,
+    clear_target_date: bool = False,
+) -> str:
+    """Update a project's detailed fields.
+
+    member_ids and team_ids are comma-separated user/team UUIDs; team keys also
+    work. Dates use YYYY-MM-DD. Member and team lists replace their current
+    values. Use the clear_* flags to remove an optional field deliberately.
+    """
+    inp: dict[str, Any] = {}
+    if content:
+        inp["content"] = content
+    if lead_id:
+        inp["leadId"] = lead_id
+    if member_ids:
+        inp["memberIds"] = [member_id.strip() for member_id in member_ids.split(",") if member_id.strip()]
+    if priority >= 0:
+        inp["priority"] = priority
+    if start_date:
+        inp["startDate"] = start_date
+    if target_date:
+        inp["targetDate"] = target_date
+    if team_ids:
+        inp["teamIds"] = [
+            _resolve_team_id(team_id.strip()) for team_id in team_ids.split(",") if team_id.strip()
+        ]
+    if icon:
+        inp["icon"] = icon
+    if color:
+        inp["color"] = color
+    if clear_lead:
+        inp["leadId"] = None
+    if clear_members:
+        inp["memberIds"] = []
+    if clear_start_date:
+        inp["startDate"] = None
+    if clear_target_date:
+        inp["targetDate"] = None
+    if not inp:
+        return _j({"error": "No fields to update"})
+    data = _gql(
+        """mutation($id: String!, $input: ProjectUpdateInput!) {
+            projectUpdate(id: $id, input: $input) {
+                success project {
+                    id name content priority startDate targetDate icon color
+                    lead { id name } members { nodes { id name } }
+                    teams { nodes { id key name } }
+                }
+            }
+        }""",
+        {"id": project_id, "input": inp},
+    )
+    project = (data.get("projectUpdate") or {}).get("project")
+    return _j(project or {"error": "Failed to update project details"})
+
+
+@mcp.tool()
+def list_project_labels(limit: int = 50, cursor: str = "") -> str:
+    """List reusable project labels. Pass next_cursor as cursor for the next page."""
+    data = _gql(
+        """query($first: Int!, $after: String) {
+            projectLabels(first: $first, after: $after) {
+                nodes { id name description color isGroup retiredAt }
+                pageInfo { hasNextPage endCursor }
+            }
+        }""",
+        {"first": _page_size(limit), "after": cursor or None},
+    )
+    return _j(_page(data.get("projectLabels")))
+
+
+@mcp.tool(annotations=ToolAnnotations(openWorldHint=True))
+def create_project_label(name: str, color: str = "#6B7280", description: str = "") -> str:
+    """Create a reusable project label. Use add_project_label to attach it to a project."""
+    inp: dict[str, Any] = {"name": name, "color": color}
+    if description:
+        inp["description"] = description
+    data = _gql(
+        """mutation($input: ProjectLabelCreateInput!) {
+            projectLabelCreate(input: $input) {
+                success projectLabel { id name description color isGroup }
+            }
+        }""",
+        {"input": inp},
+    )
+    label = (data.get("projectLabelCreate") or {}).get("projectLabel")
+    return _j(label or {"error": "Failed to create project label"})
+
+
+@mcp.tool(annotations=ToolAnnotations(openWorldHint=True))
+def add_project_label(project_id: str, label_id: str) -> str:
+    """Attach an existing project label to a project."""
+    data = _gql(
+        """mutation($id: String!, $labelId: String!) {
+            projectAddLabel(id: $id, labelId: $labelId) {
+                success project { id name labels { nodes { id name color } } }
+            }
+        }""",
+        {"id": project_id, "labelId": label_id},
+    )
+    project = (data.get("projectAddLabel") or {}).get("project")
+    return _j(project or {"error": "Failed to add project label"})
+
+
+@mcp.tool(annotations=ToolAnnotations(openWorldHint=True))
+def remove_project_label(project_id: str, label_id: str) -> str:
+    """Remove a project label from a project without deleting the reusable label."""
+    data = _gql(
+        """mutation($id: String!, $labelId: String!) {
+            projectRemoveLabel(id: $id, labelId: $labelId) {
+                success project { id name labels { nodes { id name color } } }
+            }
+        }""",
+        {"id": project_id, "labelId": label_id},
+    )
+    project = (data.get("projectRemoveLabel") or {}).get("project")
+    return _j(project or {"error": "Failed to remove project label"})
+
+
+@mcp.tool(annotations=ToolAnnotations(openWorldHint=True))
+def create_project_update(project_id: str, body: str, health: str = "") -> str:
+    """Post a project update. Health may be onTrack, atRisk, or offTrack."""
+    inp: dict[str, Any] = {"projectId": project_id, "body": body}
+    if health:
+        if health not in {"onTrack", "atRisk", "offTrack"}:
+            return _j({"error": "Health must be onTrack, atRisk, or offTrack"})
+        inp["health"] = health
+    data = _gql(
+        """mutation($input: ProjectUpdateCreateInput!) {
+            projectUpdateCreate(input: $input) {
+                success projectUpdate {
+                    id body health createdAt project { id name } user { id name }
+                }
+            }
+        }""",
+        {"input": inp},
+    )
+    update = (data.get("projectUpdateCreate") or {}).get("projectUpdate")
+    return _j(update or {"error": "Failed to create project update"})
+
+
+@mcp.tool()
+def list_project_updates(project_id: str, limit: int = 50, cursor: str = "") -> str:
+    """List a project's updates. Pass next_cursor as cursor for the next page."""
+    data = _gql(
+        """query($projectId: ID!, $first: Int!, $after: String) {
+            projectUpdates(
+                filter: { project: { id: { eq: $projectId } } }
+                first: $first
+                after: $after
+            ) {
+                nodes { id body health createdAt project { id name } user { id name } }
+                pageInfo { hasNextPage endCursor }
+            }
+        }""",
+        {"projectId": project_id, "first": _page_size(limit), "after": cursor or None},
+    )
+    return _j(_page(data.get("projectUpdates")))
 
 
 @mcp.tool(annotations=ToolAnnotations(destructiveHint=True, openWorldHint=True))
@@ -715,9 +927,16 @@ def archive_project(project_id: str, confirm: bool = False) -> str:
     """Archive a project. Set confirm=true only after explicit user confirmation."""
     if not confirm:
         return _j({"error": "Archiving requires explicit confirmation: set confirm=true"})
+    canceled_status_id = _resolve_project_status_id("canceled")
+    if not canceled_status_id:
+        return _j({"error": "Canceled project status not found"})
     data = _gql(
-        "mutation($id: String!, $input: ProjectUpdateInput!) { projectUpdate(id: $id, input: $input) { success project { id name state } } }",
-        {"id": project_id, "input": {"state": "canceled"}},
+        """mutation($id: String!, $input: ProjectUpdateInput!) {
+            projectUpdate(id: $id, input: $input) {
+                success project { id name status { id name type } }
+            }
+        }""",
+        {"id": project_id, "input": {"statusId": canceled_status_id}},
     )
     project = (data.get("projectUpdate") or {}).get("project")
     return _j(project or {"error": "Failed to archive project"})
