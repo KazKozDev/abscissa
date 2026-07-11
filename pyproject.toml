@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "abscissa"
+version = "0.1.0"
+description = "A safety-aware MCP server for Linear"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Artem K" }]
+keywords = ["linear", "mcp", "model-context-protocol", "project-management"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = ["mcp>=1.0.0,<2.0.0"]
+
+[project.urls]
+Homepage = "https://github.com/KazKozDev/abscissa"
+Source = "https://github.com/KazKozDev/abscissa"
+Issues = "https://github.com/KazKozDev/abscissa/issues"
+
+[project.optional-dependencies]
+dev = ["build>=1.2", "pytest>=8.0", "ruff>=0.8", "twine>=6.0"]
+
+[project.scripts]
+abscissa = "abscissa.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/abscissa"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
